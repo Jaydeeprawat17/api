@@ -34,7 +34,7 @@ async function queryLLM(prompt) {
 }
 
 // Endpoint required by challenge
-app.post("/ask", async (req, res) => {
+app.post("/chat", async (req, res) => {
   try {
     const { chat } = req.body;
     if (!chat) return res.status(400).json({ error: "Chat message required" });

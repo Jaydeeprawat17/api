@@ -10,44 +10,56 @@ app.use(bodyParser.json());
 
 // Generic LLM Query Function (uses AIML API)
 async function queryLLM(prompt) {
-  const response = await fetch("https://api.aimlapi.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.AIML_API_KEY}`, // ✅ key from .env
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemma-3-4b-it", // AIML API supports OpenAI-like models
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  try {
+    const response = await fetch(
+      "https://api.aimlapi.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.AIML_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemma-3-4b-it",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      }
+    );
 
-  const data = await response.json();
+    const data = await response.json();
 
-  // Handle errors from API gracefully
-  if (!data.choices || data.choices.length === 0) {
-    console.error("LLM API Error:", data);
-    return "Sorry, I couldn't get a response from the LLM.";
+    if (!response.ok) {
+      console.error("LLM API Error:", data);
+      return "Sorry, I couldn't get a response from the LLM right now.";
+    }
+
+    const message = data?.choices?.[0]?.message?.content;
+    return message?.toString().trim() || "Sorry, I didn't get any answer.";
+  } catch (err) {
+    console.error("Unexpected error calling AIML API:", err);
+    return "Oops! Something went wrong talking to the LLM.";
   }
-
-  return data.choices[0].message.content;
 }
 
 // Endpoint required by challenge
 app.post("/chat", async (req, res) => {
-  try {
-    const { chat } = req.body;
-    if (!chat) return res.status(400).json({ error: "Chat message required" });
+  const { chat } = req.body;
 
-    const responseText = await queryLLM(chat);
-    console.log("-----REs-----\n");
-    console.log(responseText);
-    console.log("-----REs-----\n");
-    res.json({ response: responseText });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "LLM request failed" });
+  if (!chat || typeof chat !== "string") {
+    return res.status(400).json({
+      response: 'Invalid input — please send { "chat": "your message" }',
+    });
   }
+
+  const responseText = await queryLLM(chat);
+
+  console.log("\n--- Incoming Chat ---");
+  console.log("Prompt:", chat);
+  console.log("LLM Response:", responseText);
+  console.log("--------------------\n");
+
+  // Always return a proper JSON object with a string
+  res.json({ response: responseText });
 });
 
 // Health check
